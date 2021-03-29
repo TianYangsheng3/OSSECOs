@@ -61,7 +61,6 @@ criterion = nn.MSELoss()
 # print("conv1.bias.grad before backward:", net.conv1.bias.grad)
 # loss.backward()
 # print("conv1.bias.grad after backward:", net.conv1.bias.grad)
-
 optimizer = optim.SGD(net.parameters(), lr=0.01)
 
 for i in range(10):
