@@ -24,7 +24,6 @@ class Net(nn.Module):
         return x
 
 
-
 def data(num, feature):
     all_data = []
 
@@ -44,7 +43,7 @@ def data(num, feature):
         cur.append(res)
         all_data.append(cur)
     
-    with open('file/data.csv', 'w') as f:
+    with open('file//data.csv', 'w') as f:
         f_csv = csv.writer(f)
         f_csv.writerows(all_data)
 
@@ -83,7 +82,7 @@ if __name__ == '__main__':
         if i==9999:
             pred = pred.detach().numpy()
             target = target.detach().numpy()
-            with open('file/pred.csv', 'w') as f:
+            with open('file//pred.csv', 'w') as f:
                 f_csv = csv.writer(f)
                 length = len(pred)
                 for k in range(length):
