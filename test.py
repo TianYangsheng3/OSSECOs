@@ -1,24 +1,81 @@
+import networkx as nx
+
 import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import torch.optim as optim
 import numpy as np
-import torch
+import torch.nn.init as init
 
+G = nx.karate_club_graph()
+print(G.number_of_nodes()) # 34
+print(G.number_of_edges()) # 78
 
-x = torch.ones(2,2, requires_grad = True)
-y = torch.tensor([[2,3],[2,3]], dtype = torch.float,requires_grad = True)
+def norm(adj):
+    adj += np.eye(adj.shape[0]) # 为每个结点增加自环
+    degree = np.array(adj.sum(1)) # 为每个结点计算度
+    degree = np.diag(np.power(degree, -0.5))
+    return degree.dot(adj).dot(degree)
 
-z = x*x + y + 1
-print(z)
+class GraphConvolution(nn.Module):
+    def __init__(self, input_size, output_size):
+        super(GraphConvolution, self).__init__()
+        self.linear = nn.Linear(input_size, output_size)
 
-k = z*z
-print(k)
+    def forward(self, adj, features):
+        out = torch.mm(adj, features)
+        out = self.linear(out)
+        return out
 
-tmp_1 = torch.tensor([[1,2],[3,4]], dtype = torch.float)
+class GCN(nn.Module):
+    def __init__(self, input_size=34, hidden_size=5):
+        super(GCN, self).__init__()
+        self.gcn1 = GraphConvolution(input_size, hidden_size)
+        self.gcn2 = GraphConvolution(hidden_size, 2)
+    
+    def forward(self, adj, features):
+        out = F.relu(self.gcn1(adj, features))
+        out = self.gcn2(adj, out)
+        return out
 
-z.retain_grad()         # non-leaf Tenor need retain_grad() and locat before .backward() if require its grad
+LEARNING_RATE = 0.1
+WEIGHT_DACAY = 5e-4
+EPOCHS = 50
+DEVICE = "cuda" if torch.cuda.is_available() else "cpu"
 
-k.backward(tmp_1)
-print("z:", z.grad)
-print(z.requires_grad)
-print("y:", y.grad)
+features = np.eye(34, dtype=np.float)
 
-print("x:", x.grad)
+y = np.zeros(G.number_of_nodes())
+for i in range(G.number_of_nodes()):
+    if G.nodes[i]['club'] == 'Mr. Hi':
+        y[i] = 0
+    else:
+        y[i] = 1
+        
+adj = np.zeros((34, 34)) # 邻阶矩阵
+for k, v in G.adj.items():
+    for item in v.keys():
+        adj[k][item] = 1
+adj = norm(adj)
+
+features = torch.tensor(features, dtype=torch.float).to(DEVICE)
+y = torch.tensor(y, dtype=torch.long).to(DEVICE)
+adj = torch.tensor(adj, dtype=torch.float).to(DEVICE)
+
+net = GCN().to(DEVICE)
+loss = nn.CrossEntropyLoss().to(DEVICE)
+optimizer = optim.Adam(net.parameters(), lr=LEARNING_RATE, weight_decay=WEIGHT_DACAY)
+
+def train():
+    for epoch in range(EPOCHS):
+        out = net(adj, features)
+        mask = [False if x != 0 and x != 33 else True for x in range(34)] # 只选择管理员和教练进行训练
+        l = loss(out[mask], y[mask])
+        optimizer.zero_grad()
+        l.backward()
+        optimizer.step()
+
+        print(f"epoch: {epoch}, loss: {l.item()}")
+
+train()
+

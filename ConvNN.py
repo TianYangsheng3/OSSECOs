@@ -29,7 +29,7 @@ class Net(nn.Module):
         num_feature = 1
         for s in size:
             num_feature *= s
-        print("num_feature: ", num_feature)
+        # print("num_feature: ", num_feature)
         return num_feature
 
 net = Net()
@@ -38,10 +38,11 @@ print(net)
 params = list(net.parameters())
 # print("params: ", params)
 print("params len : ",len(params))
-# for i in range(len(params)):
-#     print("params layer_"+str(i)+" size: ", params[i].size())
+for i in range(len(params)):
+    print("params layer_"+str(i)+" size: ", params[i].size())
 
 input = torch.randn(1,1,32,32)
+print("input: ", input.size())
 out  = net(input)
 print("out: ", out)
 
