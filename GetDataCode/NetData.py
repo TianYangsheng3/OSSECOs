@@ -3,6 +3,8 @@ import pymysql
 from datetime import datetime, date, timedelta
 from collections import namedtuple
 
+#### "用于Gephi做动态网络的数据"
+
 #### 得到PidSet中的项目形成节点表和边表
 def get_data(FileRootpath, EndDate, PidSet, layer):
     NextPidSet = []
