@@ -1,6 +1,6 @@
 import numpy as np
 import torch,csv
-# torch.set_default_tensor_type(torch.DoubleTensor)
+torch.set_default_tensor_type(torch.DoubleTensor)
 import torch.nn as nn
 import torch.nn.functional as F 
 import torch.optim as optim
@@ -92,6 +92,14 @@ def norm(adjacency):
     degree = np.diag(np.power(degree, -0.5).flatten())
     return degree.dot(adjacency).dot(degree)
 
+#### 最大最小值归一化
+def NormData(data):
+    tmp = np.max(data, axis=0) - np.min(data, axis=0)
+    for i in range(len(tmp)):
+        if tmp[i]==0:
+            tmp[i] = 1
+    data = (data-np.min(data, axis=0))/tmp
+    return data
 
 def train(traindata, adjacencies, net, criterion, optimizer, epoch):     #### traindata: (seq_sum+1)*N*d;  adjacencies: seq_sum*N*N
     for i in range(epoch):
@@ -106,7 +114,7 @@ def train(traindata, adjacencies, net, criterion, optimizer, epoch):     #### tr
             optimizer.zero_grad()
 
             outs = net(inputs_adj, inputs_x)
-            loss = criterion(outs[-1:,:,:], targets[-1:,:,:])
+            loss = criterion(outs[:,:, :], targets[:,:, :])
             loss.backward()
             optimizer.step()
             running_loss += loss.item()
@@ -134,19 +142,16 @@ def test(testdata, adjacencies, net, criterion, optimizer):
 
             predictions = net(inputs_adj, inputs_x)
             # pred.append(predictions[])
-            loss = criterion(predictions[-1:,:,:], targets[-1:,:,:])
+            loss = criterion(predictions[:,:,:], targets[:,:,:])
             test_loss += loss.item()
 
-            pred.append(predictions[-1:,:,:])
-            ground.append(targets[-1:,:,:])
+            pred.append(predictions[-1:,0:1,:])
+            ground.append(targets[-1:,0:1,:])
 
             print("Seq %d , test loss = %.4f " % (i, test_loss))
     print('Finishing testing!')
     ViewResult(pred, ground)
-
-
-
-        
+     
 
 def RandData(seq_num, N, d):
     traindata = torch.randn(seq_num, N, d)
@@ -172,11 +177,17 @@ def PrepareData(filepath, seq_sum, AdjSize, col_start, col_end):
         for row in f_csv:
             if cnt%AdjSize == 0:
                 cur_seq += 1
+            if cur_seq>=seq_sum:
+                break
             one_item = []
             for v in range(col_start, col_end):
                 one_item.append(float(row[v]))
             data[cur_seq].append(one_item)
             cnt += 1
+    data = np.asarray(data)
+    data = np.reshape(data, (-1, (col_end-col_start)))
+    data = NormData(data)
+    data = np.reshape(data, (seq_sum, AdjSize, (col_end-col_start)))
     data = torch.Tensor(data)
     # print("traindata size: ", data.size())
     return data
@@ -189,6 +200,12 @@ def PrepareAdj(filepath, seq_sum, AdjSize):
         for row in f_csv:
             cur_adj = [float(v) for v in row]
             adjacencies.append(cur_adj)
+    # adjacencies = torch.tensor(adjacencies)
+    # adjacencies = adjacencies.view(-1,AdjSize, AdjSize)
+    adjacencies = np.asarray(adjacencies)
+    adjacencies = np.reshape(adjacencies, (-1, AdjSize, AdjSize))
+    for i in range(adjacencies.shape[0]):
+        adjacencies[i] = norm(adjacencies[i])
     adjacencies = torch.tensor(adjacencies)
     adjacencies = adjacencies.view(-1,AdjSize, AdjSize)
     # print("adjacencies size: ", adjacencies.size())
@@ -201,14 +218,17 @@ def ViewResult(pred, ground ):
     node_num = pred[0].size(1)
     feature_num = pred[0].size(2)
 
+    # print("pred: ", pred[0][0])
+    # print("groud: ", ground[0][0])
+
     pred_degree = []
     ground_degree = []
     for i in range(length):
         cur_pred = pred[i].view(node_num, feature_num)
         # print(torch.sum(cur_pred, dim=0)[-2])
-        pred_degree.append(torch.sum(cur_pred, dim=0)[-1].item())
+        pred_degree.append(torch.sum(cur_pred, dim=0)[0].item())
         cur_ground = ground[i].view(node_num, feature_num)
-        ground_degree.append(torch.sum(cur_ground, dim=0)[-1].item())
+        ground_degree.append(torch.sum(cur_ground, dim=0)[0].item())
     plt.plot(x, pred_degree, label = "pred")
     plt.plot(x, ground_degree, label = 'groud')
     plt.legend()
@@ -219,22 +239,24 @@ def ViewResult(pred, ground ):
      
 
 if __name__ == '__main__':
-    seq_num, input_dims, hidden_dims, output_dims, batch_size, layers = 5, 13, 13, 13, 500, 2
-    AdjSize = 500
+    seq_num, input_dims, hidden_dims, output_dims, batch_size, layers = 5, 13, 13, 13, 1000, 2
+    AdjSize = batch_size
+    seq_sum = 73            #### 指多少个月的数据
     net = LstmGcnNet(seq_num, input_dims, hidden_dims, output_dims, batch_size, layers)
     
-    learning_rate, momentum = 0.1, 0.9
-    epoch = 500
+    learning_rate, momentum = 0.05, 0.9
+    epoch = 1000
     # print(net)
 
     # traindata, adjacencies = RandData(31+10, batch_size, input_dims)
     FileRootpath = 'GetDataCode\\data\\'
-    filepath_data = FileRootpath + "Net_Data_4023.csv"
-    filepath_adj = FileRootpath + "Net_Adj_4023.csv"
-    Data = PrepareData(filepath_data, 73, batch_size, 4, 17)
-    Adjacencies = PrepareAdj(filepath_adj, 73, batch_size)
+    filepath_data = FileRootpath + "Net_Data_32755.csv"
+    filepath_adj = FileRootpath + "Net_Adj_32755.csv"
+    Data = PrepareData(filepath_data, seq_sum, batch_size, 4, 17)
+    print(Data[0][0])
+    Adjacencies = PrepareAdj(filepath_adj, seq_sum, batch_size)
 
     criterion = nn.MSELoss()
     optimizer = optim.SGD(net.parameters(), lr=learning_rate, momentum=momentum)
-    train(Data[0:31,:,:], Adjacencies[0:31,:,:], net, criterion, optimizer, epoch)
-    test(Data[27:51, :, :], Adjacencies[27:51, :, :],  net, criterion, optimizer)
+    train(Data[0:51,:,:], Adjacencies[0:51,:,:], net, criterion, optimizer, epoch)
+    test(Data[47:61, :, :], Adjacencies[47:61, :, :],  net, criterion, optimizer)
