@@ -275,6 +275,8 @@ def GetValidId(validfile):
 #### 得到每个中心项目形成的网络，即节点数据Data 和 邻接矩阵Adjancenies
 def GetNets(FileRootpath, EndDate, AdjSize, projects_valid, LayerNum, LowBound):
     cnt = 0
+    ShortestId, ShortestTime = -1, datetime(2000, 1, 1)
+    FinalNetIds = []
     LayerNodes = {}     #### 记录每一层的节点ID
     for NetId in projects_valid:
         Nodes = {}
@@ -287,18 +289,31 @@ def GetNets(FileRootpath, EndDate, AdjSize, projects_valid, LayerNum, LowBound):
 
         res = IdToIndex(NetId, Nodes, AdjSize,LowBound)
         if res:
+            FinalNetIds.append(NetId)
+            if Nodes[NetId[0]][3]>ShortestTime:
+                ShortestTime = Nodes[NetId[0]][3]
+                ShortestId = NetId[0]
             TimesLayerNodes(FileRootpath, EndDate, NetId, LayerNodes[NetId[0]], Nodes, AdjSize, LayerNum)
             cnt += 1
             Data, Adjancenies = GetNetData(FileRootpath, EndDate, NetId, Nodes, AdjSize)
     print("满足Adjsize的Net个数：", cnt)
+    print("ShortestId is: ", ShortestId)
+    print("ShortestTime is: ", ShortestTime)
 
     filepath = FileRootpath + 'NetLayer.json'
     with open(filepath, 'w', newline="") as f:
         json.dump(LayerNodes, f)
     print("Success write LayerNodes to json file!!")
-        # return Data, Adjancenies
 
-
+    filepath_finalnetid = FileRootpath + 'FinalNetIds.csv'
+    with open(filepath_finalnetid, 'w', newline="") as f:
+        f_csv = csv.writer(f)
+        for netid in FinalNetIds:
+            f_csv.writerow(netid)
+    print("Success write FinalNetIds to json file!!")
+    # return Data, Adjancenies
+  
+    
 #### 将网络每层layer的节点数量变化写入文件
 def TimesLayerNodes(FileRootpath, EndDate, NetId, LayerNode, Nodes, AdjSize, LayerNum):
     #### Nodes: ['id', 'label', 'owner_id', 'created_at', 'forked_from']
