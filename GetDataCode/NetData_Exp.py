@@ -125,7 +125,7 @@ def GetNetData(FileRootpath, EndDate, NetId, Nodes, AdjSize):
                 cursor.execute(sql_fork)
                 data_fork = cursor.fetchall()
                 tmp.append(round(len(data_fork)/30.0,6))
-                in_degree = len(data_fork)
+                # in_degree = len(data_fork)
 
                     #### 得到contributor and commits
                 contributor = []
@@ -192,13 +192,30 @@ def GetNetData(FileRootpath, EndDate, NetId, Nodes, AdjSize):
                 data_watcher = cursor.fetchall()
                 tmp.append(round(len(data_watcher)/30.0,6))
 
-                    #### 入度和出度（当月总数）
-                tmp.append(in_degree)
-                # tmp.append(1)
-                if Nodes[pid][3].month==cur_date.month and Nodes[pid][3].year==cur_date.year:
-                    tmp.append(1)
-                else:
+                    #### 入度（从初始到当月累计总数）, 入度即子女总数
+                sql_indegree =  "select * from projects where forked_from=" + str(pid) +" and created_at<'"+next_date.strftime('%Y-%m-%d')+"'"
+                cursor.execute(sql_indegree)
+                data_indegree = cursor.fetchall()
+                tmp.append(len(data_indegree))
+                
+                    #### 节点所在层数
+                pa_id = Nodes[pid][4]
+                located = 0
+                while pa_id != None:
+                    located += 1    
+                    pa_id = Nodes[pa_id][4]
+                tmp.append(located)
+
+                    #### 节点兄弟个数
+                parent_id = Nodes[pid][4]
+                if parent_id is None:
                     tmp.append(0)
+                else:
+
+                    sql_brothernum =  "select * from projects where forked_from=" + str(parent_id) +" and created_at<'"+next_date.strftime('%Y-%m-%d')+"'"
+                    cursor.execute(sql_brothernum)
+                    data_brothernum = cursor.fetchall()
+                    tmp.append(len(data_brothernum)-1)
 
                 cur_month_data[ind].extend(tmp)
 
@@ -211,11 +228,11 @@ def GetNetData(FileRootpath, EndDate, NetId, Nodes, AdjSize):
                     cur_month_adj[target_ind*AdjSize+source_ind] = 1
   
             else:
-                tmp = [cur_date, pid, Nodes[pid][3], Nodes[pid][4]] + [0 for _ in range(13)]  ### 评价指标数量or特征数量 13
+                tmp = [cur_date, pid, Nodes[pid][3], Nodes[pid][4]] + [0 for _ in range(14)]  ### 评价指标数量or特征数量 13
                 cur_month_data[ind].extend(tmp)
         #### 将cur_month_data扩展到AdjSize*feature
         for _ in range(AdjSize-len(Nodes)):
-            zeros = [0]*17
+            zeros = [0]*18
             cur_month_data.append(zeros)    
         Data.append(cur_month_data)
         Adjancenies.append(cur_month_adj)
@@ -232,7 +249,7 @@ def GetNetData(FileRootpath, EndDate, NetId, Nodes, AdjSize):
 def to_file(filepath, data, NetId, flag):
     isOK = False
     header = ['date', 'pid', 'created_at', 'forked_from', 'forks','contributor','commits','commit_comment',\
-        'req_opened','req_closed','req_merged','req_other','issue','issue_comment','watchers', 'in_degree', 'out_degree']
+        'req_opened','req_closed','req_merged','req_other','issue','issue_comment','watchers', 'in_degree', 'layer', 'brothernum']
     with open(filepath, 'w', newline='') as f:
         f_csv = csv.writer(f)
         if flag:
@@ -339,7 +356,7 @@ if __name__ == '__main__':
     LowBound = 200
     LayerNum = 6
     validpath = FileRootpath + "valid.csv"
-    projects_valid = GetValidId(validpath)
-    # projects_valid = [[4023],[6223],[7537],[600928],[5455]]
+    # projects_valid = GetValidId(validpath)
+    projects_valid = [[4023],[6223]]
     GetNets(FileRootpath, EndDate, AdjSize, projects_valid, LayerNum, LowBound)
 
